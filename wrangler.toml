@@ -1,4 +1,4 @@
-name = "stream"
+name = "web-streaming"
 main = "src/index.js"
 compatibility_date = "2026-05-11"
 
