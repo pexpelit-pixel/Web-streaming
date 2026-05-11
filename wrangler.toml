@@ -1,0 +1,11 @@
+name = "stream"
+main = "src/index.js"
+compatibility_date = "2026-05-11"
+
+[[kv_namespaces]]
+binding = "VIDEOS"
+id = "2ce8f48a3acb41f485ff1d5281c3d44e"
+
+[vars]
+APP_NAME = "Streaming"
+LULU_BASE = "https://lulustream.com"
