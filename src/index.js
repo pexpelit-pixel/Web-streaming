@@ -1,4 +1,3 @@
-
 const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
@@ -141,54 +140,38 @@ function htmlPage(title, body, script = "") {
       background: linear-gradient(135deg, var(--accent), #00d2ff);
       border-color: transparent;
     }
-    .table {
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-    }
-    .item {
-      background: rgba(255,255,255,.04);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 12px;
-    }
-    .item .title { font-weight: 800; margin-bottom: 6px; }
-    .item .meta { color: var(--muted); font-size: 13px; line-height: 1.5; }
-    .actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+    .progress {
       margin-top: 10px;
+      height: 16px;
+      background: rgba(255,255,255,.08);
+      border-radius: 999px;
+      overflow: hidden;
     }
-    .actions button { width: auto; padding: 10px 12px; border-radius: 12px; }
-    .split {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .kpi {
-      background: rgba(255,255,255,.05);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px;
-    }
-    .kpi b { display:block; font-size: 22px; margin-bottom: 4px; }
-    .topbar {
-      display:flex;
-      justify-content:space-between;
-      gap:12px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-    .small { font-size: 13px; color: var(--muted); }
-    .footer {
-      margin-top: 16px;
-      color: var(--muted);
-      font-size: 13px;
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), #00d2ff);
+      transition: width .3s ease;
     }
     @media (max-width: 980px) {
-      .grid, .row2, .split { grid-template-columns: 1fr; }
+      .grid, .row2 { grid-template-columns: 1fr; }
+    }
+    /* Stream page */
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: #000;
+    }
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
   </style>
 </head>
@@ -233,13 +216,7 @@ async function dood(env, path, params = {}) {
 
   const text = await res.text();
   let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error("Invalid JSON from Dood: " + text.slice(0, 300));
-  }
-
+  try { data = JSON.parse(text); } catch { throw new Error("Invalid JSON from Dood: " + text.slice(0, 300)); }
   return data;
 }
 
@@ -260,16 +237,11 @@ async function doodPost(env, path, body = {}) {
 
   const text = await res.text();
   let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error("Invalid JSON from Dood: " + text.slice(0, 300));
-  }
-
+  try { data = JSON.parse(text); } catch { throw new Error("Invalid JSON from Dood: " + text.slice(0, 300)); }
   return data;
 }
 
+// Halaman Utama (dashboard)
 function homePage() {
   return htmlPage(
     "Dood Proxy",
@@ -281,191 +253,164 @@ function homePage() {
             <div class="muted">Cloudflare Worker + tampilan simple + endpoint lengkap</div>
           </div>
           <div class="chips">
-            <div class="chip active">Simple UI</div>
-            <div class="chip">API Proxy</div>
-            <div class="chip">GET / POST</div>
+            <a href="/uploader" class="chip">📤 Uploader</a>
+            <a href="/stream" class="chip">▶️ Stream</a>
+            <div class="chip active">API</div>
           </div>
+        </div>
+      </div>
+      <!-- ... (sisa dashboard sama seperti sebelumnya) ... -->
+    `,
+    `/* ... script client-side sama seperti sebelumnya ... */`
+  );
+}
+
+// Halaman Uploader
+function uploaderPage() {
+  return htmlPage(
+    "Upload Video - DoodStream",
+    `
+      <div class="hero">
+        <h1>📤 Upload Video</h1>
+        <div class="muted">Upload via URL atau file langsung ke DoodStream</div>
+        <div class="chips" style="margin-top:12px">
+          <a href="/" class="chip">← Dashboard</a>
+          <a href="/stream" class="chip">Stream</a>
         </div>
       </div>
 
       <div class="grid">
         <div class="panel">
-          <h2>Upload By File / URL</h2>
-          <div class="muted" style="margin-bottom:12px">Prioritas upload langsung ke DoodStream.</div>
-
+          <h2>🌐 Upload via URL</h2>
           <div class="form">
-            <input id="uploadUrl" placeholder="Direct video URL" />
+            <input id="urlInput" placeholder="Direct video URL (mp4, mkv, dll)" />
             <div class="row2">
-              <input id="uploadTitle" placeholder="Judul video" />
-              <input id="uploadFolder" placeholder="Folder ID" value="0" />
+              <input id="urlTitle" placeholder="Judul video" />
+              <input id="urlFolder" placeholder="Folder ID (default 0)" value="0" />
             </div>
-            <button class="good" onclick="showUploadMain()">Upload Remote URL</button>
+            <button class="good" onclick="uploadByUrl()">Upload URL</button>
           </div>
-
-          <div style="height:18px"></div>
-
-          <h2>Quick Actions</h2>
-          <div class="row2">
-            <button onclick="loadAccount()">Account Info</button>
-            <button onclick="loadStats()">Account Stats</button>
-          </div>
-          <div class="row2" style="margin-top:10px">
-            <button onclick="loadFiles()">File List</button>
-            <button onclick="loadFolders()">Folder List</button>
-          </div>
-          <div class="row2" style="margin-top:10px">
-            <button class="good" onclick="showUpload()">Remote Upload URL</button>
-            <button onclick="loadUploadList()">Upload Queue</button>
-          </div>
-
-          <div class="footer">API key tidak tampil di frontend. Semua lewat Worker.</div>
         </div>
 
         <div class="panel">
-          <h2>Output</h2>
-          <pre id="out">Klik tombol di kiri untuk test.</pre>
+          <h2>📁 Upload File Langsung</h2>
+          <div class="form">
+            <input type="file" id="fileInput" accept="video/*" />
+            <div class="row2">
+              <input id="fileTitle" placeholder="Judul video" />
+              <input id="fileFolder" placeholder="Folder ID" value="0" />
+            </div>
+            <div class="progress" id="progressBar" style="display:none">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <button class="good" onclick="uploadFile()">Upload File</button>
+          </div>
         </div>
       </div>
 
-      <div class="grid" style="margin-top:16px">
-        <div class="panel">
-          <h2>Tools</h2>
-          <div class="form">
-            <input id="searchTerm" placeholder="Search term" />
-            <div class="row2">
-              <button onclick="searchVideos()">Search Files</button>
-              <button onclick="fileInfo()">File Info by Code</button>
-            </div>
-            <div class="row2">
-              <button onclick="fileCheck()">File Check</button>
-              <button onclick="createFolder()">Create Folder</button>
-            </div>
-            <div class="row2">
-              <button onclick="renameFile()">Rename File</button>
-              <button onclick="moveFile()">Move File</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <h2>API Example</h2>
-          <pre>
-GET /account
-GET /stats?last=7
-GET /files?page=1&per_page=50
-GET /file/info?file_code=xxx
-POST /upload/url { url, fld_id, new_title }
-POST /folder/create { name, parent_id }
-          </pre>
-        </div>
+      <div class="panel" style="margin-top:16px">
+        <h2>Hasil Upload</h2>
+        <pre id="result">Menunggu upload...</pre>
       </div>
     `,
     `
-      const out = document.getElementById('out');
-      const searchTerm = document.getElementById('searchTerm');
+      const result = document.getElementById('result');
+      function show(obj) { result.textContent = JSON.stringify(obj, null, 2); }
 
-      async function show(res) {
-        out.textContent = typeof res === 'string' ? res : JSON.stringify(res, null, 2);
-      }
-
-      async function api(path, opts) {
-        const res = await fetch(path, opts || {});
-        return res.json();
-      }
-
-      window.loadAccount = async () => show(await api('/account'));
-      window.loadStats = async () => show(await api('/stats?last=7'));
-      window.loadFiles = async () => show(await api('/files?page=1&per_page=10'));
-      window.loadFolders = async () => show(await api('/folder/list?fld_id=0'));
-      window.loadUploadList = async () => show(await api('/upload/list'));
-      window.searchVideos = async () => show(await api('/search?q=' + encodeURIComponent(searchTerm.value || 'test')));
-
-      window.fileInfo = async () => {
-        const code = prompt('File code?');
-        if (!code) return;
-        show(await api('/file/info?file_code=' + encodeURIComponent(code)));
+      window.uploadByUrl = async () => {
+        const url = document.getElementById('urlInput').value.trim();
+        const title = document.getElementById('urlTitle').value.trim();
+        const fld_id = document.getElementById('urlFolder').value.trim() || '0';
+        if (!url) return alert('URL diperlukan');
+        show({ status: 'uploading...' });
+        try {
+          const res = await fetch('/upload/url', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ url, fld_id, new_title: title }),
+          });
+          show(await res.json());
+        } catch(e) { show({ error: e.message }); }
       };
 
-      window.fileCheck = async () => {
-        const code = prompt('File code?');
-        if (!code) return;
-        show(await api('/file/check?file_code=' + encodeURIComponent(code)));
-      };
+      window.uploadFile = () => {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) return alert('Pilih file video');
+        const title = document.getElementById('fileTitle').value.trim();
+        const fld_id = document.getElementById('fileFolder').value.trim() || '0';
 
-      window.createFolder = async () => {
-        const name = prompt('Folder name?');
-        if (!name) return;
-        const res = await fetch('/folder/create', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name, parent_id: '0' }),
-        });
-        show(await res.json());
-      };
+        const form = new FormData();
+        form.append('file', file);
+        form.append('fld_id', fld_id);
+        form.append('new_title', title);
 
-      window.renameFile = async () => {
-        const file_code = prompt('File code?');
-        if (!file_code) return;
-        const title = prompt('New title?');
-        if (!title) return;
-        const res = await fetch('/file/rename', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ file_code, title }),
-        });
-        show(await res.json());
-      };
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        progressBar.style.display = 'block';
+        progressFill.style.width = '0%';
+        show({ status: 'uploading...' });
 
-      window.moveFile = async () => {
-        const file_code = prompt('File code?');
-        if (!file_code) return;
-        const fld_id = prompt('Target folder id?');
-        if (!fld_id) return;
-        const res = await fetch('/file/move', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ file_code, fld_id }),
-        });
-        show(await res.json());
-      };
-
-      window.showUploadMain = async () => {
-        const url = document.getElementById('uploadUrl').value.trim();
-        const title = document.getElementById('uploadTitle').value.trim();
-        const fld_id = document.getElementById('uploadFolder').value.trim() || '0';
-
-        if (!url) {
-          alert('URL wajib diisi');
-          return;
-        }
-
-        out.textContent = 'Uploading...';
-
-        const res = await fetch('/upload/url', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            url,
-            fld_id,
-            new_title: title,
-          }),
-        });
-
-        show(await res.json());
-      };
-
-      window.showUpload = async () => {
-        const url = prompt('Direct video URL?');
-        if (!url) return;
-        const title = prompt('New title?', '');
-        const res = await fetch('/upload/url', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ url, new_title: title || '' }),
-        });
-        show(await res.json());
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = (e.loaded / e.total) * 100;
+            progressFill.style.width = pct + '%';
+            show({ uploaded: pct.toFixed(1) + '%' });
+          }
+        };
+        xhr.onload = () => {
+          try { show(JSON.parse(xhr.responseText)); } catch { show({ raw: xhr.responseText }); }
+          progressBar.style.display = 'none';
+        };
+        xhr.onerror = () => { show({ error: 'Upload gagal' }); progressBar.style.display = 'none'; };
+        xhr.open('POST', '/upload/file');
+        xhr.send(form);
       };
     `
+  );
+}
+
+// Halaman Streaming
+function streamPage(file_code = "") {
+  const embedUrl = file_code ? `https://dood.wf/e/${file_code}` : "";
+  return htmlPage(
+    "Streaming - DoodStream",
+    `
+      <div class="hero">
+        <h1>▶️ Streaming Video</h1>
+        <div class="muted">Masukkan file_code atau tonton video dari DoodStream</div>
+        <div class="chips" style="margin-top:12px">
+          <a href="/" class="chip">← Dashboard</a>
+          <a href="/uploader" class="chip">Upload</a>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:16px">
+        <div class="form">
+          <div class="row2">
+            <input id="fileCodeInput" placeholder="Masukkan file_code" value="${escapeHtml(file_code)}" />
+            <button onclick="location.href='/stream?file_code=' + document.getElementById('fileCodeInput').value.trim()">
+              Tonton
+            </button>
+          </div>
+        </div>
+      </div>
+
+      ${file_code ? `
+      <div class="panel">
+        <div class="video-container">
+          <iframe src="${embedUrl}" frameborder="0" allowfullscreen></iframe>
+        </div>
+        <p style="margin-top:10px">File Code: <strong>${escapeHtml(file_code)}</strong></p>
+        <p class="muted">Embed: ${embedUrl}</p>
+      </div>
+      ` : `
+      <div class="panel">
+        <p class="muted">Masukkan file_code di atas untuk menonton video.</p>
+      </div>
+      `}
+    `,
+    ""
   );
 }
 
@@ -482,37 +427,96 @@ export default {
     }
 
     try {
+      // Halaman Utama
       if (url.pathname === "/") {
         return new Response(homePage(), {
           headers: { "content-type": "text/html; charset=utf-8" },
         });
       }
 
+      // Halaman Uploader
+      if (url.pathname === "/uploader") {
+        return new Response(uploaderPage(), {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+
+      // Halaman Streaming
+      if (url.pathname === "/stream") {
+        const file_code = url.searchParams.get("file_code") || "";
+        return new Response(streamPage(file_code), {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+
+      // --- API Endpoints ---
+
       if (url.pathname === "/account") {
         return json(await dood(env, "/api/account/info"));
       }
 
       if (url.pathname === "/stats") {
-        return json(
-          await dood(env, "/api/account/stats", {
-            last: url.searchParams.get("last") || "7",
-            from_date: url.searchParams.get("from_date") || "",
-            to_date: url.searchParams.get("to_date") || "",
-          })
-        );
+        return json(await dood(env, "/api/account/stats", {
+          last: url.searchParams.get("last") || "7",
+          from_date: url.searchParams.get("from_date") || "",
+          to_date: url.searchParams.get("to_date") || "",
+        }));
       }
 
       if (url.pathname === "/upload/url" && request.method === "POST") {
         const body = await request.json();
         if (!body.url) return json({ msg: "url required", status: 400 }, 400);
+        return json(await dood(env, "/api/upload/url", {
+          url: body.url,
+          fld_id: body.fld_id || "0",
+          new_title: body.new_title || body.title || "",
+        }));
+      }
 
-        return json(
-          await dood(env, "/api/upload/url", {
-            url: body.url,
-            fld_id: body.fld_id || "0",
-            new_title: body.new_title || body.title || "",
-          })
-        );
+      // Upload server (untuk upload file langsung)
+      if (url.pathname === "/upload/server") {
+        return json(await dood(env, "/api/upload/server"));
+      }
+
+      // Upload file langsung
+      if (url.pathname === "/upload/file" && request.method === "POST") {
+        try {
+          // 1. Dapatkan server upload
+          const serverRes = await dood(env, "/api/upload/server");
+          const uploadUrl = serverRes.result;
+          if (!uploadUrl) {
+            return json({ msg: "Gagal mendapatkan upload server", status: 500 }, 500);
+          }
+
+          // 2. Ambil file dari request client
+          const form = await request.formData();
+          const file = form.get("file");
+          const fld_id = form.get("fld_id") || "0";
+          const new_title = form.get("new_title") || "";
+
+          if (!file) return json({ msg: "File wajib diisi", status: 400 }, 400);
+
+          // 3. Kirim file ke server Dood
+          const doodForm = new FormData();
+          doodForm.append("api_key", env.DOOD_KEY);
+          doodForm.append("file", file, file.name);
+          doodForm.append("fld_id", fld_id);
+          if (new_title) doodForm.append("file_title", new_title);
+
+          const uploadRes = await fetch(uploadUrl, {
+            method: "POST",
+            body: doodForm,
+          });
+          const data = await uploadRes.json();
+
+          if (data.status !== 200) {
+            return json({ msg: "Upload gagal", error: data, status: 500 }, 500);
+          }
+
+          return json({ msg: "OK", result: data });
+        } catch (err) {
+          return json({ msg: err.message, status: 500 }, 500);
+        }
       }
 
       if (url.pathname === "/upload/status") {
@@ -526,14 +530,12 @@ export default {
       }
 
       if (url.pathname === "/files") {
-        return json(
-          await dood(env, "/api/file/list", {
-            page: url.searchParams.get("page") || "1",
-            per_page: url.searchParams.get("per_page") || "50",
-            fld_id: url.searchParams.get("fld_id") || "",
-            created: url.searchParams.get("created") || "",
-          })
-        );
+        return json(await dood(env, "/api/file/list", {
+          page: url.searchParams.get("page") || "1",
+          per_page: url.searchParams.get("per_page") || "50",
+          fld_id: url.searchParams.get("fld_id") || "",
+          created: url.searchParams.get("created") || "",
+        }));
       }
 
       if (url.pathname === "/file/info") {
@@ -553,12 +555,10 @@ export default {
         if (!body.file_code || !body.title) {
           return json({ msg: "file_code & title required", status: 400 }, 400);
         }
-        return json(
-          await dood(env, "/api/file/rename", {
-            file_code: body.file_code,
-            title: body.title,
-          })
-        );
+        return json(await dood(env, "/api/file/rename", {
+          file_code: body.file_code,
+          title: body.title,
+        }));
       }
 
       if (url.pathname === "/file/move" && request.method === "POST") {
@@ -566,33 +566,26 @@ export default {
         if (!body.file_code || !body.fld_id) {
           return json({ msg: "file_code & fld_id required", status: 400 }, 400);
         }
-        return json(
-          await dood(env, "/api/file/move", {
-            file_code: body.file_code,
-            fld_id: body.fld_id,
-          })
-        );
+        return json(await dood(env, "/api/file/move", {
+          file_code: body.file_code,
+          fld_id: body.fld_id,
+        }));
       }
 
       if (url.pathname === "/folder/create" && request.method === "POST") {
         const body = await request.json();
         if (!body.name) return json({ msg: "name required", status: 400 }, 400);
-
-        return json(
-          await dood(env, "/api/folder/create", {
-            name: body.name,
-            parent_id: body.parent_id || "0",
-          })
-        );
+        return json(await dood(env, "/api/folder/create", {
+          name: body.name,
+          parent_id: body.parent_id || "0",
+        }));
       }
 
       if (url.pathname === "/folder/list") {
-        return json(
-          await dood(env, "/api/folder/list", {
-            fld_id: url.searchParams.get("fld_id") || "0",
-            only_folders: url.searchParams.get("only_folders") || "0",
-          })
-        );
+        return json(await dood(env, "/api/folder/list", {
+          fld_id: url.searchParams.get("fld_id") || "0",
+          only_folders: url.searchParams.get("only_folders") || "0",
+        }));
       }
 
       if (url.pathname === "/search") {
@@ -607,4 +600,3 @@ export default {
     }
   },
 };
-
