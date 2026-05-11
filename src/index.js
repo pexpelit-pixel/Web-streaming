@@ -451,10 +451,6 @@ export default {
 
       // --- API Endpoints ---
 
-      if (url.pathname === "/account") {
-        return json(await dood(env, "/api/account/info"));
-      }
-
       if (url.pathname === "/stats") {
         return json(await dood(env, "/api/account/stats", {
           last: url.searchParams.get("last") || "7",
