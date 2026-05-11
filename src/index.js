@@ -166,7 +166,7 @@ async function searchVideos(env, { q = "", category = "", page = 1, perPage = 24
 }
 
 function renderApp(appName) {
-  return `<!doctype html>
+  return String.raw`<!doctype html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
@@ -479,13 +479,15 @@ function renderCategories(categories){
   const pills = qs("catPills");
 
   const unique = ["all", ...categories.filter(Boolean)];
-  const options = unique.map(c => \`<option value="\${escapeHtml(c)}">\${escapeHtml(c)}</option>\`).join("");
+  const options = unique.map(c => \
+    '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'
+  ).join("");
   select.innerHTML = options;
 
   pills.innerHTML = unique.map(c => {
     const active = c === state.category ? "active" : "";
     const label = c === "all" ? "Semua" : c;
-    return \`<div class="pill \${active}" onclick="setCategory('\${escapeJs(c)}')">\${escapeHtml(label)}</div>\`;
+    return '<div class="pill ' + active + '" onclick="setCategory(\'' + escapeJs(c) + '\')">' + escapeHtml(label) + '</div>';
   }).join("");
 }
 
@@ -499,28 +501,27 @@ function escapeHtml(str = "") {
 }
 
 function escapeJs(str = "") {
-  return String(str).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'");
+  return String(str).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
 }
 
 function cardHtml(v){
   const thumb = v.thumb || v.thumbnail || "https://picsum.photos/800/450?blur=2";
   const tags = Array.isArray(v.tags) ? v.tags : String(v.tags || "").split(",").map(s => s.trim()).filter(Boolean);
-  return \`
-    <div class="video" onclick="openVideo('\${escapeJs(v.id)}')">
-      <img class="thumb" src="\${escapeHtml(thumb)}" alt="">
-      <div class="vbody">
-        <div class="title">\${escapeHtml(v.title || "Untitled")}</div>
-        <div class="meta">
-          <div>Kategori: \${escapeHtml(v.category || "other")}</div>
-          <div>Code: \${escapeHtml(v.file_code || "-")}</div>
-          <div>Views: \${escapeHtml(v.views || "0")}</div>
-        </div>
-        <div class="taglist">
-          \${tags.slice(0, 4).map(t => \`<span class="tag">\${escapeHtml(t)}</span>\`).join("")}
-        </div>
-      </div>
-    </div>
-  \`;
+  return \
+    '<div class="video" onclick="openVideo(\'' + escapeJs(v.id) + '\')">' +
+      '<img class="thumb" src="' + escapeHtml(thumb) + '" alt="">' +
+      '<div class="vbody">' +
+        '<div class="title">' + escapeHtml(v.title || "Untitled") + '</div>' +
+        '<div class="meta">' +
+          '<div>Kategori: ' + escapeHtml(v.category || "other") + '</div>' +
+          '<div>Code: ' + escapeHtml(v.file_code || "-") + '</div>' +
+          '<div>Views: ' + escapeHtml(v.views || "0") + '</div>' +
+        '</div>' +
+        '<div class="taglist">' +
+          tags.slice(0, 4).map(t => '<span class="tag">' + escapeHtml(t) + '</span>').join("") +
+        '</div>' +
+      '</div>' +
+    '</div>';
 }
 
 async function fetchJson(url, opts = {}) {
@@ -550,21 +551,21 @@ async function loadVideos(page = 1) {
   const cats = [...new Set((data.all_categories || []).filter(Boolean))];
   renderCategories(cats);
 
-  qs("resultInfo").textContent = \`\${data.total} video ditemukan. Halaman \${data.page}/\${data.pages}\`;
+  qs("resultInfo").textContent = data.total + " video ditemukan. Halaman " + data.page + "/" + data.pages;
   qs("grid").innerHTML = data.items.map(cardHtml).join("") || '<div class="small">Belum ada video.</div>';
 
   const pag = [];
   if (state.pages > 1) {
     if (state.page > 1) {
-      pag.push(\`<button class="secondary" onclick="loadVideos(\${state.page - 1})">Prev</button>\`);
+      pag.push('<button class="secondary" onclick="loadVideos(' + (state.page - 1) + ')">Prev</button>');
     }
     const start = Math.max(1, state.page - 2);
     const end = Math.min(state.pages, state.page + 2);
     for (let p = start; p <= end; p++) {
-      pag.push(\`<button class="\${p === state.page ? '' : 'secondary'}" onclick="loadVideos(\${p})">\${p}</button>\`);
+      pag.push('<button class="' + (p === state.page ? '' : 'secondary') + '" onclick="loadVideos(' + p + ')">' + p + '</button>');
     }
     if (state.page < state.pages) {
-      pag.push(\`<button class="secondary" onclick="loadVideos(\${state.page + 1})">Next</button>\`);
+      pag.push('<button class="secondary" onclick="loadVideos(' + (state.page + 1) + ')">Next</button>');
     }
   }
   qs("pagination").innerHTML = pag.join("");
@@ -641,7 +642,7 @@ function renderWatchPage(appName, video) {
   const thumb = video?.thumb || video?.thumbnail || "";
   const tags = Array.isArray(video?.tags) ? video.tags : String(video?.tags || "").split(",").map(s => s.trim()).filter(Boolean);
 
-  return `<!doctype html>
+  return String.raw`<!doctype html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
@@ -791,7 +792,15 @@ async function uploadByUrlToLulu(env, body) {
     tags: body.tags ?? "",
   });
 
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Lulu bukan JSON: " + text.slice(0, 300));
+  }
+
   if (!res.ok || data?.status !== 200) {
     throw new Error(JSON.stringify(data));
   }
@@ -828,7 +837,15 @@ async function syncFromLulu(env, pages = 1) {
       page,
     });
 
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Lulu list bukan JSON: " + text.slice(0, 300));
+    }
+
     if (!res.ok || data?.status !== 200) {
       throw new Error(JSON.stringify(data));
     }
