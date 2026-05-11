@@ -8,4 +8,4 @@ id = "2ce8f48a3acb41f485ff1d5281c3d44e"
 
 [vars]
 APP_NAME = "Streaming"
-LULU_BASE = "https://lulustream.com"
+DOOD_API = "https://doodapi.co"
