@@ -1,3 +1,4 @@
+
 const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
 };
@@ -402,6 +403,327 @@ function renderApp(appName) {
         <input id="q" placeholder="Cari title, kategori, tag, file code..." />
         <select id="category">
           <option value="all">Semua kategori</option>
+        </select>
+        <button onclick="doSearch()">Search</button>
+      </div>
+
+      <div class="cats" id="catPills"></div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div>
+            <b>Daftar Video</b>
+            <div class="small" id="resultInfo">Memuat...</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="secondary" onclick="syncFromLulu()">Sync dari Lulu</button>
+            <button class="secondary" onclick="loadVideos()">Reload</button>
+          </div>
+        </div>
+
+        <div class="grid" id="grid"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+
+      <div class="card">
+        <b>Upload by URL</b>
+        <div class="small" style="margin-top:6px">
+          Gunakan kalau video sudah ada di link direct yang bisa diambil LuluStream.
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="list">
+          <input id="u_title" placeholder="Title video" />
+          <input id="u_url" placeholder="Direct video URL" />
+          <input id="u_category" placeholder="Kategori, contoh: anime" />
+          <input id="u_tags" placeholder="Tags, pisahkan koma" />
+          <textarea id="u_descr" placeholder="Description"></textarea>
+          <div class="cols2">
+            <input id="u_fld" placeholder="Folder ID (opsional)" value="0" />
+            <input id="u_catid" placeholder="Cat ID (opsional)" value="0" />
+          </div>
+          <div class="cols2">
+            <input id="u_public" placeholder="Public 1/0" value="1" />
+            <input id="u_adult" placeholder="Adult 1/0" value="0" />
+          </div>
+          <button onclick="uploadByUrl()">Upload ke Lulu</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <b>Info</b>
+        <div class="status" id="status">Siap.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let state = {
+  page: 1,
+  perPage: 24,
+  q: "",
+  category: "all",
+  pages: 1,
+};
+
+function qs(id){ return document.getElementById(id); }
+
+function setStatus(msg){
+  qs("status").textContent = msg;
+}
+
+function renderCategories(categories){
+  const select = qs("category");
+  const pills = qs("catPills");
+
+  const unique = ["all", ...categories.filter(Boolean)];
+  const options = unique.map(c => \`<option value="\${escapeHtml(c)}">\${escapeHtml(c)}</option>\`).join("");
+  select.innerHTML = options;
+
+  pills.innerHTML = unique.map(c => {
+    const active = c === state.category ? "active" : "";
+    const label = c === "all" ? "Semua" : c;
+    return \`<div class="pill \${active}" onclick="setCategory('\${escapeJs(c)}')">\${escapeHtml(label)}</div>\`;
+  }).join("");
+}
+
+function escapeHtml(str = "") {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeJs(str = "") {
+  return String(str).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'");
+}
+
+function cardHtml(v){
+  const thumb = v.thumb || v.thumbnail || "https://picsum.photos/800/450?blur=2";
+  const tags = Array.isArray(v.tags) ? v.tags : String(v.tags || "").split(",").map(s => s.trim()).filter(Boolean);
+  return \`
+    <div class="video" onclick="openVideo('\${escapeJs(v.id)}')">
+      <img class="thumb" src="\${escapeHtml(thumb)}" alt="">
+      <div class="vbody">
+        <div class="title">\${escapeHtml(v.title || "Untitled")}</div>
+        <div class="meta">
+          <div>Kategori: \${escapeHtml(v.category || "other")}</div>
+          <div>Code: \${escapeHtml(v.file_code || "-")}</div>
+          <div>Views: \${escapeHtml(v.views || "0")}</div>
+        </div>
+        <div class="taglist">
+          \${tags.slice(0, 4).map(t => \`<span class="tag">\${escapeHtml(t)}</span>\`).join("")}
+        </div>
+      </div>
+    </div>
+  \`;
+}
+
+async function fetchJson(url, opts = {}) {
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || ("HTTP " + res.status));
+  }
+  return res.json();
+}
+
+async function loadVideos(page = 1) {
+  state.page = page;
+  qs("grid").innerHTML = "";
+  qs("pagination").innerHTML = "";
+  setStatus("Memuat video...");
+
+  const url = new URL("/api/videos", location.origin);
+  url.searchParams.set("page", String(state.page));
+  url.searchParams.set("per_page", String(state.perPage));
+  if (state.q) url.searchParams.set("q", state.q);
+  if (state.category && state.category !== "all") url.searchParams.set("category", state.category);
+
+  const data = await fetchJson(url);
+  state.pages = data.pages || 1;
+
+  const cats = [...new Set((data.all_categories || []).filter(Boolean))];
+  renderCategories(cats);
+
+  qs("resultInfo").textContent = \`\${data.total} video ditemukan. Halaman \${data.page}/\${data.pages}\`;
+  qs("grid").innerHTML = data.items.map(cardHtml).join("") || '<div class="small">Belum ada video.</div>';
+
+  const pag = [];
+  if (state.pages > 1) {
+    if (state.page > 1) {
+      pag.push(\`<button class="secondary" onclick="loadVideos(\${state.page - 1})">Prev</button>\`);
+    }
+    const start = Math.max(1, state.page - 2);
+    const end = Math.min(state.pages, state.page + 2);
+    for (let p = start; p <= end; p++) {
+      pag.push(\`<button class="\${p === state.page ? '' : 'secondary'}" onclick="loadVideos(\${p})">\${p}</button>\`);
+    }
+    if (state.page < state.pages) {
+      pag.push(\`<button class="secondary" onclick="loadVideos(\${state.page + 1})">Next</button>\`);
+    }
+  }
+  qs("pagination").innerHTML = pag.join("");
+  setStatus("Siap.");
+}
+
+function doSearch() {
+  state.q = qs("q").value.trim();
+  state.category = qs("category").value;
+  loadVideos(1).catch(err => setStatus("Error: " + err.message));
+}
+
+function setCategory(cat) {
+  state.category = cat;
+  qs("category").value = cat;
+  loadVideos(1).catch(err => setStatus("Error: " + err.message));
+}
+
+async function openVideo(id) {
+  location.href = "/watch?id=" + encodeURIComponent(id);
+}
+
+async function uploadByUrl() {
+  try {
+    setStatus("Upload dimulai...");
+    const payload = {
+      url: qs("u_url").value.trim(),
+      title: qs("u_title").value.trim(),
+      description: qs("u_descr").value.trim(),
+      category: qs("u_category").value.trim() || "other",
+      tags: qs("u_tags").value.trim(),
+      fld_id: qs("u_fld").value.trim() || "0",
+      cat_id: qs("u_catid").value.trim() || "0",
+      file_public: qs("u_public").value.trim() || "1",
+      file_adult: qs("u_adult").value.trim() || "0",
+    };
+
+    const data = await fetchJson("/api/upload/url", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    setStatus("Upload masuk antrian Lulu. File code: " + data.filecode);
+    await loadVideos(1);
+  } catch (e) {
+    setStatus("Upload gagal: " + e.message);
+  }
+}
+
+async function syncFromLulu() {
+  try {
+    setStatus("Sync dari Lulu...");
+    const data = await fetchJson("/api/sync/lulu?pages=1");
+    setStatus("Sync selesai. " + data.saved + " file tersimpan/diupdate.");
+    await loadVideos(state.page);
+  } catch (e) {
+    setStatus("Sync gagal: " + e.message);
+  }
+}
+
+qs("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") doSearch();
+});
+
+loadVideos().catch(err => setStatus("Error: " + err.message));
+</script>
+</body>
+</html>`;
+}
+
+function renderWatchPage(appName, video) {
+  const link = video?.link || (video?.file_code ? `https://lulustream.com/${video.file_code}.html` : "#");
+  const thumb = video?.thumb || video?.thumbnail || "";
+  const tags = Array.isArray(video?.tags) ? video.tags : String(video?.tags || "").split(",").map(s => s.trim()).filter(Boolean);
+
+  return `<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(video?.title || appName)}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #111936;
+      --line: #22305d;
+      --text: #e8eefc;
+      --muted: #9fb0dd;
+      --accent: #2f6bff;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(circle at top, #14204a 0, var(--bg) 45%);
+      color: var(--text);
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .card {
+      background: rgba(17,25,54,.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.2);
+    }
+    a, button {
+      color: inherit;
+      text-decoration: none;
+    }
+    button {
+      width: auto;
+      border-radius: 12px;
+      border: 0;
+      background: var(--accent);
+      color: white;
+      padding: 12px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .secondary {
+      background: #1a2446;
+      border: 1px solid var(--line);
+    }
+    .head {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .head img {
+      width: 280px;
+      max-width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #07101f;
+    }
+    .meta { color: var(--muted); line-height: 1.6; }
+    .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .tag {
+      font-size: 12px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #142246;
+      border: 1px solid #22396d;
+    }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .divider { height: 1px; background: var(--line); margin: 16px 0; }
+    iframe {
+      width: 100%;
+      height: 680px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #07101f;
+    }
+all">Semua kategori</option>
         </select>
         <button onclick="doSearch()">Search</button>
       </div>
